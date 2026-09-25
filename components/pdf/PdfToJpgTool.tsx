@@ -266,8 +266,6 @@ export function PdfToJpgTool() {
   const handleConvert = async () => {
     if (!selectedFile || !pdfMeta || isConverting) return;
 
-    console.log("PDF JPG: CONVERT CLICKED");
-    console.log("PDF JPG: FILE:", selectedFile?.name);
     setIsConverting(true);
     setErrorMessage(null);
 
@@ -276,13 +274,11 @@ export function PdfToJpgTool() {
       formData.append("file", selectedFile);
       formData.append("quality", quality);
 
-      console.log("PDF JPG: STARTING FETCH");
       const response = await fetch("/api/pdf/to-jpg", {
         method: "POST",
         body: formData,
       });
 
-      console.log("PDF JPG: RESPONSE RECEIVED:", response.status);
       if (!response.ok) {
         let errText = "Failed to convert PDF to JPG.";
         try {

@@ -1,7 +1,12 @@
 import "@/lib/polyfill";
 import { NextResponse, type NextRequest } from "next/server";
 import JSZip from "jszip";
-import { createCanvas } from "@napi-rs/canvas";
+import {
+  destroyPdfDocument,
+  loadPdfForRendering,
+  PdfLoadError,
+  renderPageToJpeg,
+} from "@/lib/pdf-render";
 
 export const runtime = "nodejs";
 
@@ -11,21 +16,22 @@ export type QualityLevel = "standard" | "high" | "maximum";
 
 interface QualityConfig {
   scale: number;
+  /** JPEG quality on the 0-100 scale used by `@napi-rs/canvas` 1.x */
   quality: number;
 }
 
 const QUALITY_CONFIGS: Record<QualityLevel, QualityConfig> = {
   standard: {
     scale: 1.5,
-    quality: 0.8,
+    quality: 80,
   },
   high: {
     scale: 2.0,
-    quality: 0.9,
+    quality: 90,
   },
   maximum: {
     scale: 3.0,
-    quality: 0.95,
+    quality: 95,
   },
 };
 
@@ -109,27 +115,13 @@ export async function POST(request: NextRequest) {
     const requestedQuality = (formData.get("quality")?.toString() || "high") as QualityLevel;
     const qualityConfig = QUALITY_CONFIGS[requestedQuality] || QUALITY_CONFIGS.high;
 
-    // Dynamically import pdfjs-dist legacy build for Node.js environment
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const pdfjsLib: any = await import("pdfjs-dist/legacy/build/pdf.mjs");
-
     try {
-      const loadingTask = pdfjsLib.getDocument({
-        data: bytes,
-        disableFontFace: true,
-        verbosity: 0,
-      });
-      pdfDoc = await loadingTask.promise;
+      pdfDoc = await loadPdfForRendering(bytes);
     } catch (err: unknown) {
+      const failure = err instanceof PdfLoadError ? err.failure : "unknown";
       const msg = err instanceof Error ? err.message : String(err);
-      const lower = msg.toLowerCase();
-      const errObj = err as { name?: string; code?: number };
 
-      if (
-        errObj?.name === "PasswordException" ||
-        errObj?.code === 1 ||
-        lower.includes("password")
-      ) {
+      if (failure === "password") {
         return NextResponse.json(
           {
             error: `File "${file.name}" is password-protected. Please remove password protection before converting to JPG.`,
@@ -138,12 +130,7 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      if (
-        errObj?.name === "InvalidPDFException" ||
-        lower.includes("invalid pdf") ||
-        lower.includes("corrupt") ||
-        lower.includes("format error")
-      ) {
+      if (failure === "invalid") {
         return NextResponse.json(
           {
             error: `File "${file.name}" is corrupted or invalid and cannot be converted.`,
@@ -174,27 +161,14 @@ export async function POST(request: NextRequest) {
     // CASE 1: Single-page PDF -> Direct JPG download
     if (totalPages === 1) {
       const page = await pdfDoc.getPage(1);
-      const viewport = page.getViewport({ scale: qualityConfig.scale });
-      const canvas = createCanvas(Math.round(viewport.width), Math.round(viewport.height));
-      const ctx = canvas.getContext("2d");
-
-      // Fill crisp white background (PDF pages default to transparent in canvas)
-      ctx.fillStyle = "#ffffff";
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-      await page.render({
-        canvasContext: ctx,
-        viewport: viewport,
-      }).promise;
-
-      const jpgBuffer = canvas.toBuffer(
-        "image/jpeg",
-        Math.round(qualityConfig.quality * 100)
+      const { buffer: jpgBuffer, width, height } = await renderPageToJpeg(
+        page,
+        qualityConfig.scale,
+        qualityConfig.quality
       );
 
-      if (pdfDoc && typeof pdfDoc.destroy === "function") {
-        try { await pdfDoc.destroy(); pdfDoc = null; } catch { /* ignore */ }
-      }
+      await destroyPdfDocument(pdfDoc);
+      pdfDoc = null;
 
       const outputFilename = `${safeBaseName}-page-1.jpg`;
 
@@ -206,8 +180,8 @@ export async function POST(request: NextRequest) {
           "Content-Length": jpgBuffer.byteLength.toString(),
           "X-Total-Pages": "1",
           "X-Quality-Level": requestedQuality,
-          "X-Image-Width": Math.round(viewport.width).toString(),
-          "X-Image-Height": Math.round(viewport.height).toString(),
+          "X-Image-Width": width.toString(),
+          "X-Image-Height": height.toString(),
           "Cache-Control": "no-store, no-cache, must-revalidate",
         },
       });
@@ -218,31 +192,18 @@ export async function POST(request: NextRequest) {
 
     for (let pageNum = 1; pageNum <= totalPages; pageNum++) {
       const page = await pdfDoc.getPage(pageNum);
-      const viewport = page.getViewport({ scale: qualityConfig.scale });
-      const canvas = createCanvas(Math.round(viewport.width), Math.round(viewport.height));
-      const ctx = canvas.getContext("2d");
-
-      // Fill white background
-      ctx.fillStyle = "#ffffff";
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-      await page.render({
-        canvasContext: ctx,
-        viewport: viewport,
-      }).promise;
-
-      const jpgBuffer = canvas.toBuffer(
-        "image/jpeg",
-        Math.round(qualityConfig.quality * 100)
+      const { buffer: jpgBuffer } = await renderPageToJpeg(
+        page,
+        qualityConfig.scale,
+        qualityConfig.quality
       );
 
       const pageFilename = `filenova-page-${pageNum}.jpg`;
       zip.file(pageFilename, jpgBuffer);
     }
 
-    if (pdfDoc && typeof pdfDoc.destroy === "function") {
-      try { await pdfDoc.destroy(); pdfDoc = null; } catch { /* ignore */ }
-    }
+    await destroyPdfDocument(pdfDoc);
+    pdfDoc = null;
 
     const zipBuffer = await zip.generateAsync({
       type: "nodebuffer",
@@ -271,24 +232,6 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   } finally {
-    if (pdfDoc && typeof pdfDoc.destroy === "function") {
-      try {
-        await pdfDoc.destroy();
-      } catch {
-        // Ignore cleanup errors
-      }
-    }
+    await destroyPdfDocument(pdfDoc);
   }
 }
-
-
-
-
-
-
-
-
-
-
-
-
