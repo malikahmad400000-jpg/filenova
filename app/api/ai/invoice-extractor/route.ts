@@ -12,6 +12,12 @@ const MAX_PDF_PAGES = 15;
 const MAX_OCR_PAGES = 10;
 
 export async function POST(request: NextRequest) {
+  console.log("[invoice-route] runtime config:", {
+    provider: process.env.AI_PROVIDER || "(unset)",
+    geminiKeyPresent: Boolean(process.env.GEMINI_API_KEY?.trim()),
+    geminiKeyLength: process.env.GEMINI_API_KEY?.trim()?.length ?? 0,
+    geminiModel: process.env.GEMINI_MODEL || "(unset)",
+  });
   try {
     const contentType = request.headers.get("content-type") || "";
     if (!contentType.includes("multipart/form-data")) {
@@ -89,7 +95,7 @@ export async function POST(request: NextRequest) {
     let extractedText = "";
     let pageCount = 1;
 
-    // ── Document Ingestion / Text Extraction ──────────────────────────────────
+    // â”€â”€ Document Ingestion / Text Extraction â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     if (docType === "pdf") {
       let extracted;
       try {
@@ -157,7 +163,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // ── Execute AI Invoice Extraction ─────────────────────────────────────────
+    // â”€â”€ Execute AI Invoice Extraction â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     let invoiceData;
     try {
       invoiceData = await extractInvoiceData({
