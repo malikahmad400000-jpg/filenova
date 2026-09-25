@@ -7,7 +7,7 @@ import {
   type AIProviderType,
 } from "./provider";
 
-// ─── Data Types & Extraction Schema ──────────────────────────────────────────
+// â”€â”€â”€ Data Types & Extraction Schema â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export interface InvoiceLineItem {
   description: string;
@@ -57,7 +57,7 @@ export interface ExtractInvoiceParams {
   provider?: AIProviderType;
 }
 
-// ─── Number & Field Normalization Utilities ───────────────────────────────────
+// â”€â”€â”€ Number & Field Normalization Utilities â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function parseNullableNumber(val: unknown): number | null {
   if (val === null || val === undefined) return null;
@@ -66,7 +66,7 @@ function parseNullableNumber(val: unknown): number | null {
   }
   if (typeof val === "string") {
     // Strip common currency symbols, commas, and spaces
-    const cleaned = val.replace(/[$€£¥₹\s,]/g, "").trim();
+    const cleaned = val.replace(/[$â‚¬Â£Â¥â‚¹\s,]/g, "").trim();
     if (!cleaned) return null;
     const num = parseFloat(cleaned);
     return Number.isFinite(num) ? Math.round(num * 100) / 100 : null;
@@ -163,7 +163,7 @@ function calculateConfidenceAndWarnings(data: {
   return { confidence: Math.min(100, score), warnings };
 }
 
-// ─── Extraction Prompt ────────────────────────────────────────────────────────
+// â”€â”€â”€ Extraction Prompt â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const SYSTEM_PROMPT = `You are FileNova's AI Invoice Data Extraction Engine.
 Your job is to accurately extract structured financial, commercial, and line-item information from invoice, receipt, or bill text.
@@ -207,13 +207,20 @@ JSON SCHEMA:
   ]
 }`;
 
-// ─── Core Extraction Function ──────────────────────────────────────────────────
+// â”€â”€â”€ Core Extraction Function â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export async function extractInvoiceData(
   params: ExtractInvoiceParams
 ): Promise<ExtractedInvoiceData> {
   const { text, totalPages = 1, provider } = params;
   const activeProvider = provider || getAIProviderType();
+
+  console.log("[invoice-extractor] AI runtime config:", {
+    provider: activeProvider,
+    geminiKeyPresent: Boolean(process.env.GEMINI_API_KEY?.trim()),
+    geminiKeyLength: process.env.GEMINI_API_KEY?.trim()?.length ?? 0,
+    geminiModel: process.env.GEMINI_MODEL || "(default)",
+  });
 
   if (!isAIConfigured(activeProvider)) {
     throw new MissingApiKeyError(
@@ -323,7 +330,7 @@ Extract all invoice data according to the schema. Remember to return null for an
   };
 }
 
-// ─── CSV Export Utility ────────────────────────────────────────────────────────
+// â”€â”€â”€ CSV Export Utility â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function escapeCsvField(val: string | number | null | undefined): string {
   if (val === null || val === undefined) return '""';
