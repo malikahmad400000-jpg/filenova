@@ -18,16 +18,16 @@ export interface LanguageOption {
 
 export const SUPPORTED_LANGUAGES: LanguageOption[] = [
   { code: "en", name: "English", nativeName: "English" },
-  { code: "ur", name: "Urdu", nativeName: "اردو" },
-  { code: "ar", name: "Arabic", nativeName: "العربية" },
-  { code: "es", name: "Spanish", nativeName: "Español" },
-  { code: "fr", name: "French", nativeName: "Français" },
+  { code: "ur", name: "Urdu", nativeName: "Ã˜Â§Ã˜Â±Ã˜Â¯Ã™Ë†" },
+  { code: "ar", name: "Arabic", nativeName: "Ã˜Â§Ã™â€žÃ˜Â¹Ã˜Â±Ã˜Â¨Ã™Å Ã˜Â©" },
+  { code: "es", name: "Spanish", nativeName: "EspaÃƒÂ±ol" },
+  { code: "fr", name: "French", nativeName: "FranÃƒÂ§ais" },
   { code: "de", name: "German", nativeName: "Deutsch" },
   { code: "it", name: "Italian", nativeName: "Italiano" },
-  { code: "pt", name: "Portuguese", nativeName: "Português" },
-  { code: "hi", name: "Hindi", nativeName: "हिन्दी" },
-  { code: "zh", name: "Chinese", nativeName: "中文" },
-  { code: "ja", name: "Japanese", nativeName: "日本語" },
+  { code: "pt", name: "Portuguese", nativeName: "PortuguÃƒÂªs" },
+  { code: "hi", name: "Hindi", nativeName: "Ã Â¤Â¹Ã Â¤Â¿Ã Â¤Â¨Ã Â¥ÂÃ Â¤Â¦Ã Â¥â‚¬" },
+  { code: "zh", name: "Chinese", nativeName: "Ã¤Â¸Â­Ã¦â€“â€¡" },
+  { code: "ja", name: "Japanese", nativeName: "Ã¦â€”Â¥Ã¦Å“Â¬Ã¨ÂªÅ¾" },
 ];
 
 export const SOURCE_LANGUAGES: LanguageOption[] = [
@@ -106,32 +106,32 @@ export function detectLanguage(text: string): string {
   const lower = sample.toLowerCase();
 
   // German
-  if (/[äöüß]/.test(lower) || /\b(und|nicht|der|das|dem|den|des|ein|eine|einer|eines|einem|einen|für|mit|auf|ist|sind)\b/.test(lower)) {
-    if (/[äöüß]/.test(lower) || /\b(und|nicht|der|das|dem|den|des)\b/.test(lower)) {
+  if (/[ÃƒÂ¤ÃƒÂ¶ÃƒÂ¼ÃƒÅ¸]/.test(lower) || /\b(und|nicht|der|das|dem|den|des|ein|eine|einer|eines|einem|einen|fÃƒÂ¼r|mit|auf|ist|sind)\b/.test(lower)) {
+    if (/[ÃƒÂ¤ÃƒÂ¶ÃƒÂ¼ÃƒÅ¸]/.test(lower) || /\b(und|nicht|der|das|dem|den|des)\b/.test(lower)) {
       return "de";
     }
   }
 
   // Portuguese markers & scoring
   const ptMatches =
-    (lower.match(/[ãõ]/g) || []).length * 4 +
-    (lower.match(/\b(não|são|estão|ações|muito|você|também|do|da|dos|das|no|na|nos|nas|pelo|pela|pelos|pelas|para|com|por|uma|um|foi|relatório)\b/g) || []).length;
+    (lower.match(/[ÃƒÂ£ÃƒÂµ]/g) || []).length * 4 +
+    (lower.match(/\b(nÃƒÂ£o|sÃƒÂ£o|estÃƒÂ£o|aÃƒÂ§ÃƒÂµes|muito|vocÃƒÂª|tambÃƒÂ©m|do|da|dos|das|no|na|nos|nas|pelo|pela|pelos|pelas|para|com|por|uma|um|foi|relatÃƒÂ³rio)\b/g) || []).length;
 
   // Spanish markers & scoring
   const esMatches =
-    (lower.match(/[ñ¿¡]/g) || []).length * 3 +
-    (lower.match(/[áíóú]/g) || []).length * 2 +
-    (lower.match(/\b(el|la|los|las|del|al|en|de|es|por|para|con|pero|más|como|este|esta|estos|estas|muy|su|sus|un|una|oficial)\b/g) || []).length;
+    (lower.match(/[ÃƒÂ±Ã‚Â¿Ã‚Â¡]/g) || []).length * 3 +
+    (lower.match(/[ÃƒÂ¡ÃƒÂ­ÃƒÂ³ÃƒÂº]/g) || []).length * 2 +
+    (lower.match(/\b(el|la|los|las|del|al|en|de|es|por|para|con|pero|mÃƒÂ¡s|como|este|esta|estos|estas|muy|su|sus|un|una|oficial)\b/g) || []).length;
 
   // French markers & scoring
   const frMatches =
-    (lower.match(/[œæ]|(?:[ldcqsnmt]'\w+)/g) || []).length * 3 +
-    (lower.match(/[àèêëîïôûù]/g) || []).length * 2 +
+    (lower.match(/[Ã…â€œÃƒÂ¦]|(?:[ldcqsnmt]'\w+)/g) || []).length * 3 +
+    (lower.match(/[ÃƒÂ ÃƒÂ¨ÃƒÂªÃƒÂ«ÃƒÂ®ÃƒÂ¯ÃƒÂ´ÃƒÂ»ÃƒÂ¹]/g) || []).length * 2 +
     (lower.match(/\b(le|la|les|des|du|dans|pour|avec|sur|est|sont|une|un|qui|que|cette|ces|mais|pas|plus|rapport|disponible|actionnaires)\b/g) || []).length;
 
   // Italian markers & scoring
   const itMatches =
-    (lower.match(/\b(il|lo|la|i|gli|le|un|uno|una|del|dello|della|dei|degli|delle|nel|nello|nella|nei|negli|nelle|sul|sullo|sulla|sui|sugli|sulle|per|con|tra|fra|che|sono|questo|questa|questi|queste|anche|più|dopo|quando|stato|stata|stati|state|relazione|finanziaria|azionisti|approvata)\b/g) || []).length;
+    (lower.match(/\b(il|lo|la|i|gli|le|un|uno|una|del|dello|della|dei|degli|delle|nel|nello|nella|nei|negli|nelle|sul|sullo|sulla|sui|sugli|sulle|per|con|tra|fra|che|sono|questo|questa|questi|queste|anche|piÃƒÂ¹|dopo|quando|stato|stata|stati|state|relazione|finanziaria|azionisti|approvata)\b/g) || []).length;
 
   const scores = [
     { lang: "pt", score: ptMatches },
@@ -262,8 +262,22 @@ export async function translateDocument(params: TranslateDocumentParams): Promis
       const completion = await generateCompletion({
         provider: activeProvider,
         systemPrompt,
-        prompt: chunk,
+        prompt: `Translate the following document content from ${sourceLangName} to ${targetLangName}.
+
+IMPORTANT:
+- Translate EVERY human-readable word, phrase, heading, label, sentence, and table header into ${targetLangName}.
+- Do NOT leave ordinary English words untranslated.
+- Do NOT return the original language except for proper names, product/model names, reference codes, URLs, email addresses, technical identifiers, numbers, dates, currencies, and other values that should remain unchanged.
+- For tables, translate ALL textual headers, labels, status words, and descriptive text.
+- Boolean/status words such as TRUE/FALSE should be translated when they are ordinary document content.
+- Preserve the order, rows, columns, line breaks, and document structure as closely as possible.
+- Return ONLY the translated document content.
+- Do not summarize, omit, shorten, or rewrite any part of the source.
+
+DOCUMENT CONTENT:
+${chunk}`,
         temperature: mode === "fast" ? 0.1 : 0.2,
+        maxTokens: mode === "high_quality" ? 3000 : 2000,
       });
 
       const chunkTranslation = completion.text.trim();
