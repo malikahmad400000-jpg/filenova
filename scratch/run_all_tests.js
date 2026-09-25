@@ -3,6 +3,7 @@ const path = require("path");
 
 const suites = [
   { name: "PDF to Word", file: "test-pdf-to-word.js", expected: 6 },
+  { name: "PDF to JPG", file: "test-pdf-to-jpg.js", expected: 23 },
   { name: "PDF to Excel", file: "test_pdf_to_excel.js", expected: 46 },
   { name: "Supabase & Auth", file: "test_supabase_auth.js", expected: 87 },
   { name: "Gemini / AI Provider", file: "test_gemini_provider.js", expected: 110 },

@@ -7,6 +7,7 @@ import {
   preprocessImageForOcr,
   createOcrWorker,
 } from "./ocr";
+import { loadPdfForRendering, PdfLoadError } from "@/lib/pdf-render";
 
 export const MAX_OCR_PAGES = 10;
 
@@ -25,45 +26,27 @@ export async function ocrPdfDocument(
   lang = "eng",
   maxPages = MAX_OCR_PAGES
 ): Promise<OcrResult> {
-  // Dynamically import pdfjs-dist legacy build
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const pdfjsLib: any = await import("pdfjs-dist/legacy/build/pdf.mjs");
-
   let pdfDoc;
   try {
-    const loadingTask = pdfjsLib.getDocument({
-      data: new Uint8Array(pdfBytes.slice(0)),
-      disableFontFace: true,
-      verbosity: 0,
-    });
-    pdfDoc = await loadingTask.promise;
+    // Shared loader: keeps PDF.js and @napi-rs/canvas on one native binding
+    // (see lib/pdf-render.ts) and supplies the bundled standard font/CMap data.
+    pdfDoc = await loadPdfForRendering(new Uint8Array(pdfBytes.slice(0)));
   } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : String(err);
-    const lower = msg.toLowerCase();
-    const errObj = err as { name?: string; code?: number };
+    if (err instanceof PdfLoadError) {
+      if (err.failure === "password") {
+        throw new Error(
+          "This PDF document is password-protected. Please remove password protection before uploading."
+        );
+      }
 
-    if (
-      errObj?.name === "PasswordException" ||
-      errObj?.code === 1 ||
-      lower.includes("password")
-    ) {
-      throw new Error(
-        "This PDF document is password-protected. Please remove password protection before uploading."
-      );
+      if (err.failure === "invalid") {
+        throw new Error("The PDF document is corrupted or invalid and cannot be read.");
+      }
+
+      throw new Error(`Could not parse PDF document: ${err.message}`);
     }
 
-    if (
-      errObj?.name === "InvalidPDFException" ||
-      lower.includes("invalid pdf") ||
-      lower.includes("corrupt") ||
-      lower.includes("format error")
-    ) {
-      throw new Error(
-        "The PDF document is corrupted or invalid and cannot be read."
-      );
-    }
-
-    throw new Error(`Could not parse PDF document: ${msg}`);
+    throw err;
   }
 
   try {

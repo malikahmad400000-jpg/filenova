@@ -11,6 +11,9 @@
     "start": "next start",
     "lint": "eslint"
   },
+  "overrides": {
+    "@napi-rs/canvas": "$@napi-rs/canvas"
+  },
   "dependencies": {
     "@google/genai": "^2.24.0",
     "@napi-rs/canvas": "^1.0.9",
