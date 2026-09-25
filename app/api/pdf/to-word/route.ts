@@ -1,3 +1,4 @@
+import "@/lib/polyfill";
 import { NextResponse, type NextRequest } from "next/server";
 import {
   Document,
@@ -85,6 +86,8 @@ async function extractEmbeddedImages(pdfBytes: Uint8Array): Promise<Buffer[]> {
 }
 
 export async function POST(request: NextRequest) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let pdfDoc: any = null;
   try {
     const contentType = request.headers.get("content-type") || "";
     if (!contentType.includes("multipart/form-data")) {
@@ -151,7 +154,6 @@ export async function POST(request: NextRequest) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const pdfjsLib: any = await import("pdfjs-dist/legacy/build/pdf.mjs");
 
-    let pdfDoc;
     try {
       const loadingTask = pdfjsLib.getDocument({
         data: new Uint8Array(arrayBuffer.slice(0)),
@@ -159,8 +161,38 @@ export async function POST(request: NextRequest) {
         verbosity: 0,
       });
       pdfDoc = await loadingTask.promise;
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : "Parsing error";
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      const lower = msg.toLowerCase();
+      const errObj = err as { name?: string; code?: number };
+
+      if (
+        errObj?.name === "PasswordException" ||
+        errObj?.code === 1 ||
+        lower.includes("password")
+      ) {
+        return NextResponse.json(
+          {
+            error: `File "${file.name}" is password-protected. Please remove password protection before converting to Word.`,
+          },
+          { status: 400 }
+        );
+      }
+
+      if (
+        errObj?.name === "InvalidPDFException" ||
+        lower.includes("invalid pdf") ||
+        lower.includes("corrupt") ||
+        lower.includes("format error")
+      ) {
+        return NextResponse.json(
+          {
+            error: `File "${file.name}" is corrupted or invalid and cannot be converted.`,
+          },
+          { status: 400 }
+        );
+      }
+
       return NextResponse.json(
         {
           error: `Could not parse "${file.name}". The document may be corrupted or password-protected: ${msg}`,
@@ -401,6 +433,15 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    if (pdfDoc && typeof pdfDoc.destroy === "function") {
+      try {
+        await pdfDoc.destroy();
+        pdfDoc = null;
+      } catch {
+        // Ignore cleanup errors
+      }
+    }
+
     // Check if the PDF has virtually zero text (Scanned / Image-only PDF)
     const isScanned = totalExtractedWords < 5;
 
@@ -490,5 +531,14 @@ export async function POST(request: NextRequest) {
       { error: `An unexpected error occurred while converting PDF to Word: ${message}` },
       { status: 500 }
     );
+  } finally {
+    if (pdfDoc && typeof pdfDoc.destroy === "function") {
+      try {
+        await pdfDoc.destroy();
+      } catch {
+        // Ignore cleanup errors
+      }
+    }
   }
 }
+

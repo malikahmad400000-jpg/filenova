@@ -3,8 +3,8 @@
 # Multi-stage build for Next.js App Router with native PDF/Canvas/Sharp dependencies
 # ------------------------------------------------------------------------------
 
-# 1. Base Image with Node.js LTS on Debian Bookworm (glibc native binary support)
-FROM node:20-bookworm-slim AS base
+# 1. Base Image with Node.js LTS (22.x) on Debian Bookworm (glibc native binary support)
+FROM node:22-bookworm-slim AS base
 WORKDIR /app
 ENV NODE_ENV=production
 

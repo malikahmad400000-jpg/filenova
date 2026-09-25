@@ -91,6 +91,7 @@ export async function callGemini(
 
     if (
       lower.includes("api_key_invalid") ||
+      lower.includes("api key not valid") ||
       lower.includes("401") ||
       lower.includes("403") ||
       lower.includes("credentials") ||
@@ -106,6 +107,30 @@ export async function callGemini(
       lower.includes("rate limit")
     ) {
       throw new Error("AI service rate limit exceeded. Please wait a moment and try again.");
+    }
+
+    if (
+      lower.includes("not found") ||
+      lower.includes("not_found") ||
+      lower.includes("404") ||
+      lower.includes("is not supported") ||
+      lower.includes("unsupported model")
+    ) {
+      // If a custom or configured model failed because it wasn't found,
+      // attempt graceful fallback to DEFAULT_GEMINI_MODEL
+      if (modelName !== DEFAULT_GEMINI_MODEL) {
+        try {
+          const fallbackCall = await ai.models.generateContent({
+            model: DEFAULT_GEMINI_MODEL,
+            contents,
+            config,
+          });
+          return fallbackCall.text?.trim() || "";
+        } catch {
+          // If fallback also fails, throw clear error below
+        }
+      }
+      throw new Error(`The requested Gemini model "${modelName}" is unavailable or not found. Please verify GEMINI_MODEL.`);
     }
 
     // Sanitize any potential key occurrences in error message

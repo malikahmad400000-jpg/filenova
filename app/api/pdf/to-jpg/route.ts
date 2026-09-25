@@ -1,3 +1,4 @@
+import "@/lib/polyfill";
 import { NextResponse, type NextRequest } from "next/server";
 import JSZip from "jszip";
 import { createCanvas } from "@napi-rs/canvas";
@@ -43,6 +44,8 @@ function hasPdfMagicBytes(buffer: Uint8Array): boolean {
 }
 
 export async function POST(request: NextRequest) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let pdfDoc: any = null;
   try {
     const contentType = request.headers.get("content-type") || "";
     if (!contentType.includes("multipart/form-data")) {
@@ -110,7 +113,6 @@ export async function POST(request: NextRequest) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const pdfjsLib: any = await import("pdfjs-dist/legacy/build/pdf.mjs");
 
-    let pdfDoc;
     try {
       const loadingTask = pdfjsLib.getDocument({
         data: bytes,
@@ -118,8 +120,38 @@ export async function POST(request: NextRequest) {
         verbosity: 0,
       });
       pdfDoc = await loadingTask.promise;
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : "Parsing error";
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      const lower = msg.toLowerCase();
+      const errObj = err as { name?: string; code?: number };
+
+      if (
+        errObj?.name === "PasswordException" ||
+        errObj?.code === 1 ||
+        lower.includes("password")
+      ) {
+        return NextResponse.json(
+          {
+            error: `File "${file.name}" is password-protected. Please remove password protection before converting to JPG.`,
+          },
+          { status: 400 }
+        );
+      }
+
+      if (
+        errObj?.name === "InvalidPDFException" ||
+        lower.includes("invalid pdf") ||
+        lower.includes("corrupt") ||
+        lower.includes("format error")
+      ) {
+        return NextResponse.json(
+          {
+            error: `File "${file.name}" is corrupted or invalid and cannot be converted.`,
+          },
+          { status: 400 }
+        );
+      }
+
       return NextResponse.json(
         {
           error: `Could not parse "${file.name}". The document may be corrupted or password-protected: ${msg}`,
@@ -159,6 +191,10 @@ export async function POST(request: NextRequest) {
         "image/jpeg",
         Math.round(qualityConfig.quality * 100)
       );
+
+      if (pdfDoc && typeof pdfDoc.destroy === "function") {
+        try { await pdfDoc.destroy(); pdfDoc = null; } catch { /* ignore */ }
+      }
 
       const outputFilename = `${safeBaseName}-page-1.jpg`;
 
@@ -204,6 +240,10 @@ export async function POST(request: NextRequest) {
       zip.file(pageFilename, jpgBuffer);
     }
 
+    if (pdfDoc && typeof pdfDoc.destroy === "function") {
+      try { await pdfDoc.destroy(); pdfDoc = null; } catch { /* ignore */ }
+    }
+
     const zipBuffer = await zip.generateAsync({
       type: "nodebuffer",
       compression: "DEFLATE",
@@ -224,10 +264,31 @@ export async function POST(request: NextRequest) {
       },
     });
   } catch (err) {
+    console.error("PDF TO JPG ERROR:", err);
     const message = err instanceof Error ? err.message : "Internal server error";
     return NextResponse.json(
       { error: `An error occurred while converting your PDF to JPG: ${message}` },
       { status: 500 }
     );
+  } finally {
+    if (pdfDoc && typeof pdfDoc.destroy === "function") {
+      try {
+        await pdfDoc.destroy();
+      } catch {
+        // Ignore cleanup errors
+      }
+    }
   }
 }
+
+
+
+
+
+
+
+
+
+
+
+

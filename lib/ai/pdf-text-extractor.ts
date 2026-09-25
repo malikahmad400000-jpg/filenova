@@ -1,3 +1,5 @@
+import "@/lib/polyfill";
+
 export interface ExtractedPage {
   pageNumber: number;
   text: string;
@@ -40,15 +42,40 @@ export async function extractTextFromPdf(pdfBytes: Uint8Array): Promise<Extracte
       verbosity: 0,
     });
     pdfDoc = await loadingTask.promise;
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : "Parsing error";
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    const lower = msg.toLowerCase();
+    const errObj = err as { name?: string; code?: number };
+
+    if (
+      errObj?.name === "PasswordException" ||
+      errObj?.code === 1 ||
+      lower.includes("password")
+    ) {
+      throw new Error(
+        "This PDF document is password-protected. Please remove password protection before uploading."
+      );
+    }
+
+    if (
+      errObj?.name === "InvalidPDFException" ||
+      lower.includes("invalid pdf") ||
+      lower.includes("corrupt") ||
+      lower.includes("format error")
+    ) {
+      throw new Error(
+        "The PDF document is corrupted or invalid and cannot be read."
+      );
+    }
+
     throw new Error(`Could not parse PDF document: ${msg}`);
   }
 
-  const totalPages = pdfDoc.numPages;
-  if (totalPages === 0) {
-    throw new Error("The PDF document contains no readable pages.");
-  }
+  try {
+    const totalPages = pdfDoc.numPages;
+    if (totalPages === 0) {
+      throw new Error("The PDF document contains no readable pages.");
+    }
 
   const pages: ExtractedPage[] = [];
   let totalWords = 0;
@@ -105,12 +132,22 @@ export async function extractTextFromPdf(pdfBytes: Uint8Array): Promise<Extracte
     });
   }
 
-  const isScanned = totalWords < 5;
+    const isScanned = totalWords < 5;
 
-  return {
-    pages,
-    totalPages,
-    totalWords,
-    isScanned,
-  };
+    return {
+      pages,
+      totalPages,
+      totalWords,
+      isScanned,
+    };
+  } finally {
+    if (pdfDoc && typeof pdfDoc.destroy === "function") {
+      try {
+        await pdfDoc.destroy();
+      } catch {
+        // Ignore cleanup errors
+      }
+    }
+  }
 }
+

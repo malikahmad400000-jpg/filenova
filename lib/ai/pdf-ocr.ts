@@ -1,3 +1,4 @@
+import "@/lib/polyfill";
 import { createCanvas } from "@napi-rs/canvas";
 import {
   type OcrMode,
@@ -36,27 +37,52 @@ export async function ocrPdfDocument(
       verbosity: 0,
     });
     pdfDoc = await loadingTask.promise;
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : "Parsing error";
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    const lower = msg.toLowerCase();
+    const errObj = err as { name?: string; code?: number };
+
+    if (
+      errObj?.name === "PasswordException" ||
+      errObj?.code === 1 ||
+      lower.includes("password")
+    ) {
+      throw new Error(
+        "This PDF document is password-protected. Please remove password protection before uploading."
+      );
+    }
+
+    if (
+      errObj?.name === "InvalidPDFException" ||
+      lower.includes("invalid pdf") ||
+      lower.includes("corrupt") ||
+      lower.includes("format error")
+    ) {
+      throw new Error(
+        "The PDF document is corrupted or invalid and cannot be read."
+      );
+    }
+
     throw new Error(`Could not parse PDF document: ${msg}`);
   }
 
-  const numPages = pdfDoc.numPages;
-  if (numPages === 0) {
-    throw new Error("The PDF document contains no readable pages.");
-  }
+  try {
+    const numPages = pdfDoc.numPages;
+    if (numPages === 0) {
+      throw new Error("The PDF document contains no readable pages.");
+    }
 
-  if (numPages > maxPages) {
-    throw new Error(
-      `This document has too many pages for OCR. Maximum limit is ${maxPages} pages (received ${numPages}).`
-    );
-  }
+    if (numPages > maxPages) {
+      throw new Error(
+        `This document has too many pages for OCR. Maximum limit is ${maxPages} pages (received ${numPages}).`
+      );
+    }
 
-  const scale = OCR_SCALE_CONFIG[mode] || OCR_SCALE_CONFIG.balanced;
-  const pages: OcrPageResult[] = [];
+    const scale = OCR_SCALE_CONFIG[mode] || OCR_SCALE_CONFIG.balanced;
+    const pages: OcrPageResult[] = [];
 
-  // Create a single worker for all pages in this document to maximize performance
-  const worker = await createOcrWorker(lang);
+    // Create a single worker for all pages in this document to maximize performance
+    const worker = await createOcrWorker(lang);
 
   try {
     for (let pageNum = 1; pageNum <= numPages; pageNum++) {
@@ -117,12 +143,22 @@ export async function ocrPdfDocument(
   const averageConfidence =
     pages.length > 0 ? Math.round((totalConfidence / pages.length) * 10) / 10 : 0;
 
-  return {
-    text: combinedText,
-    pages,
-    pageCount: pages.length,
-    averageConfidence,
-    mode,
-    sourceType: "pdf",
-  };
+    return {
+      text: combinedText,
+      pages,
+      pageCount: pages.length,
+      averageConfidence,
+      mode,
+      sourceType: "pdf",
+    };
+  } finally {
+    if (pdfDoc && typeof pdfDoc.destroy === "function") {
+      try {
+        await pdfDoc.destroy();
+      } catch {
+        // Ignore cleanup errors
+      }
+    }
+  }
 }
+
